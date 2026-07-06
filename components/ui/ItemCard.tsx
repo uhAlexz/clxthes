@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, Plus, ShoppingBag } from "lucide-react";
+import { Heart, ShoppingBag } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ export interface ItemProps {
   id: number;
   name: string;
   type: string;
+  category?: "Clothing" | "UGC" | "Layered";
   price: number | null;
   imageUrl: string;
   description: string;
@@ -26,15 +27,15 @@ export function ItemCard({ item, index }: { item: ItemProps; index?: number }) {
   const handleSave = (event: React.MouseEvent) => {
     event.stopPropagation();
     toggleSavedItem(item);
-    toast.success(isSaved ? "Removed from Wishlist" : "Added to Wishlist");
+    toast.success(isSaved ? "Removed from Saved" : "Saved");
   };
 
   const handleAddToCart = (event: React.MouseEvent) => {
     event.stopPropagation();
     addToCart(item);
     setCartDrawerOpen(true);
-    toast.success("Added to Cart", {
-      icon: <ShoppingBag className="w-4 h-4" />,
+    toast.success("Added to cart", {
+      icon: <ShoppingBag className="w-3.5 h-3.5" />,
     });
   };
 
@@ -44,32 +45,46 @@ export function ItemCard({ item, index }: { item: ItemProps; index?: number }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index ? index * 0.03 : 0 }}
+      exit={{ opacity: 0 }}
+      transition={{
+        duration: 0.45,
+        delay: index !== undefined ? Math.min(index * 0.025, 0.3) : 0,
+        ease: [0.16, 1, 0.3, 1],
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleCardClick}
-      className="group relative flex flex-col cursor-pointer border border-zinc-800 bg-zinc-900"
+      className="group relative flex flex-col cursor-pointer bg-card"
     >
-      <div className="relative aspect-square w-full overflow-hidden border-b border-zinc-800 bg-zinc-950">
+      <div className="relative aspect-square w-full overflow-hidden bg-[#0c0c0c]">
         <Image
           src={item.imageUrl}
           alt={itemName}
           fill
-          priority={index !== undefined && index < 10}
-          className="object-cover transition-transform duration-700 group-hover:scale-105"
+          fetchPriority={index !== undefined && index < 10 ? "high" : "auto"}
+          className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
           sizes="(max-width: 768px) 50vw, 20vw"
         />
 
+        {(item.category === "Layered" || item.category === "UGC") && (
+          <div className="absolute top-2 left-2 z-10">
+            <span className="font-mono text-[8px] uppercase tracking-[0.15em] text-foreground/50 bg-background/75 px-1.5 py-0.5">
+              {item.category === "Layered" ? "3D" : "UGC"}
+            </span>
+          </div>
+        )}
+
         <button
           onClick={handleSave}
-          className="absolute top-2 right-2 z-10 border border-zinc-800 bg-zinc-950 p-2 transition-colors hover:bg-zinc-900"
+          className="absolute top-2.5 right-2.5 z-10 flex h-6 w-6 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          title={isSaved ? "Remove from saved" : "Save item"}
         >
           <Heart
-            className="w-4 h-4 transition-colors"
-            fill={isSaved ? "black" : "transparent"}
-            stroke="black"
+            className={`w-3.5 h-3.5 transition-colors ${
+              isSaved ? "text-white fill-white" : "text-white/60"
+            }`}
             strokeWidth={1.5}
           />
         </button>
@@ -77,17 +92,16 @@ export function ItemCard({ item, index }: { item: ItemProps; index?: number }) {
         <AnimatePresence>
           {isHovered && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.2 }}
-              className="absolute bottom-3 left-3 right-3"
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="absolute bottom-0 left-0 right-0"
             >
               <button
                 onClick={handleAddToCart}
-                className="flex w-full items-center justify-center gap-2 bg-white py-2 text-xs font-semibold uppercase tracking-wider text-zinc-950 transition-colors hover:bg-zinc-200"
+                className="flex w-full items-center justify-center gap-1.5 bg-white py-2.5 text-[10px] font-medium uppercase tracking-[0.15em] text-black transition-colors hover:bg-[#f5f5f5]"
               >
-                <Plus className="w-3 h-3" />
                 Add to Cart
               </button>
             </motion.div>
@@ -95,25 +109,16 @@ export function ItemCard({ item, index }: { item: ItemProps; index?: number }) {
         </AnimatePresence>
       </div>
 
-      <div className="flex flex-col gap-2 p-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-            {item.type}
-          </span>
-          <h3 className="truncate font-mono text-sm font-medium text-zinc-100">{itemName}</h3>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 font-mono text-sm font-medium text-zinc-100">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Robux_2019_Logo_white.svg/960px-Robux_2019_Logo_white.svg.png?_=20201227051526"
-              alt="Robux"
-              className="h-3 w-3 invert"
-            />
-            {item.price !== null ? item.price : "Off Sale"}
-          </div>
-        </div>
+      <div className="px-3 pt-2.5 pb-3">
+        <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground mb-1">
+          {item.type}
+        </p>
+        <h3 className="text-xs font-medium text-foreground truncate leading-tight mb-1.5">
+          {itemName}
+        </h3>
+        <p className="font-mono text-[10px] text-muted-foreground">
+          {item.price !== null ? `R$ ${item.price}` : "Off Sale"}
+        </p>
       </div>
     </motion.div>
   );

@@ -19,9 +19,6 @@ export function parseRobloxId(input: string): string | null {
   return null;
 }
 
-export function extractGroupId(input: string): string | null {
-  return parseRobloxId(input);
-}
 
 const COMMON_TAGS = [
   "Y2K", "Grunge", "Emo", "Preppy", "Casual", "Streetwear", "Vintage",

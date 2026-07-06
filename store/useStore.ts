@@ -8,6 +8,18 @@ interface StoreState {
   cartItems: ItemProps[];
   quickViewItem: ItemProps | null;
   cartDrawerOpen: boolean;
+  assistantOpen: boolean;
+
+  // HYDRATION: Zustand's `persist` middleware rehydrates from localStorage
+  // asynchronously after the first client render. Server-side rendering produces
+  // the initial empty state; the client then patches it from localStorage. Without
+  // this flag, components that depend on persisted state (e.g. FloatingCartWidget
+  // showing a cart count) can produce a React hydration mismatch warning because
+  // the server HTML says "no items" but the client immediately wants to render "3".
+  // Reading `_hasHydrated` before rendering persisted-state-dependent UI prevents
+  // that mismatch.
+  _hasHydrated: boolean;
+  setHasHydrated: (value: boolean) => void;
 
   addGroup: (groupId: string) => void;
   removeGroup: (groupId: string) => void;
@@ -17,6 +29,7 @@ interface StoreState {
   clearCart: () => void;
   setQuickViewItem: (item: ItemProps | null) => void;
   setCartDrawerOpen: (open: boolean) => void;
+  setAssistantOpen: (open: boolean) => void;
 }
 
 const initialState = {
@@ -25,6 +38,8 @@ const initialState = {
   cartItems: [],
   quickViewItem: null,
   cartDrawerOpen: false,
+  assistantOpen: false,
+  _hasHydrated: false,
 };
 
 export const useStore = create<StoreState>()(
@@ -32,8 +47,10 @@ export const useStore = create<StoreState>()(
     (set) => ({
       ...initialState,
 
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
       setQuickViewItem: (item) => set({ quickViewItem: item }),
       setCartDrawerOpen: (open) => set({ cartDrawerOpen: open }),
+      setAssistantOpen: (open) => set({ assistantOpen: open }),
 
       addGroup: (groupId) =>
         set((state) => {
@@ -87,6 +104,9 @@ export const useStore = create<StoreState>()(
         savedItems: state.savedItems,
         cartItems: state.cartItems,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

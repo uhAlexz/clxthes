@@ -19,11 +19,73 @@ interface RobloxThumbnail {
   imageUrl: string;
 }
 
+// 2D classic clothing
+const CLASSIC_CLOTHING: Record<number, string> = {
+  2: "T-Shirts",
+  11: "Shirts",
+  12: "Pants",
+};
+
+// 3D layered clothing (assetType 69–77)
+const LAYERED_CLOTHING: Record<number, string> = {
+  69: "Layered T-Shirt",
+  70: "Layered Shirt",
+  71: "Layered Pants",
+  72: "Jacket",
+  73: "Sweater",
+  74: "Shorts",
+  75: "Shoes",
+  76: "Shoes",
+  77: "Dress",
+};
+
+// UGC accessories
+const UGC_ACCESSORIES: Record<number, string> = {
+  8: "Hat",
+  17: "Head",
+  18: "Face",
+  41: "Hair",
+  42: "Face Accessory",
+  43: "Neck",
+  44: "Shoulder",
+  45: "Front",
+  46: "Back",
+  47: "Waist",
+  64: "Eyebrow",
+  65: "Eyelash",
+};
+
+const LAYERED_SET = new Set(Object.keys(LAYERED_CLOTHING).map(Number));
+const UGC_SET = new Set(Object.keys(UGC_ACCESSORIES).map(Number));
+
 function toItemType(assetType?: number): string {
-  if (assetType === 11) return "Shirts";
-  if (assetType === 12) return "Pants";
-  if (assetType === 2) return "T-Shirts";
+  if (!assetType) return "Clothing";
+  return (
+    CLASSIC_CLOTHING[assetType] ??
+    LAYERED_CLOTHING[assetType] ??
+    UGC_ACCESSORIES[assetType] ??
+    "Clothing"
+  );
+}
+
+function toItemCategory(assetType?: number): "Clothing" | "UGC" | "Layered" {
+  if (!assetType) return "Clothing";
+  if (LAYERED_SET.has(assetType)) return "Layered";
+  if (UGC_SET.has(assetType)) return "UGC";
   return "Clothing";
+}
+
+async function fetchCatalogItems(groupId: string, category: string): Promise<CatalogItem[]> {
+  try {
+    const response = await fetch(
+      `https://catalog.roblox.com/v1/search/items?category=${category}&creatorTargetId=${groupId}&creatorType=Group&limit=120`
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return (data.data || []) as CatalogItem[];
+  } catch {
+    return [];
+  }
 }
 
 export async function GET(request: Request) {
@@ -35,28 +97,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ items: [] });
     }
 
+    // SECURITY: Validate that every supplied ID is a pure numeric string.
+    // The client-side parseRobloxId() already enforces this, but a malicious
+    // caller could bypass the client entirely and supply arbitrary strings that
+    // get interpolated into Roblox API URLs.
+    const MAX_GROUPS = 10;
     const groupIds = idsParam
       .split(",")
       .map((id) => id.trim())
-      .filter(Boolean);
+      .filter((id) => /^\d{1,20}$/.test(id)) // numeric-only, reasonable length cap
+      .slice(0, MAX_GROUPS);               // cap concurrent group requests
 
     if (groupIds.length === 0) {
       return NextResponse.json({ items: [] });
     }
 
+    // Fetch from Clothing, Accessories, and LayeredClothing categories in parallel
     const catalogResults = await Promise.allSettled(
-      groupIds.map(async (id) => {
-        const response = await fetch(
-          `https://catalog.roblox.com/v1/search/items?category=Clothing&creatorTargetId=${id}&creatorType=Group&limit=100`
-        );
-
-        if (!response.ok) {
-          return [] as CatalogItem[];
-        }
-
-        const data = await response.json();
-        return (data.data || []) as CatalogItem[];
-      })
+      groupIds.flatMap((id) => [
+        fetchCatalogItems(id, "Clothing"),
+        fetchCatalogItems(id, "Accessories"),
+        fetchCatalogItems(id, "LayeredClothing"),
+      ])
     );
 
     const allRawItems: CatalogItem[] = [];
@@ -66,13 +128,15 @@ export async function GET(request: Request) {
       }
     }
 
-    const uniqueRawItems = Array.from(new Map(allRawItems.map((item) => [item.id, item])).values());
+    const uniqueRawItems = Array.from(
+      new Map(allRawItems.map((item) => [item.id, item])).values()
+    );
 
     if (uniqueRawItems.length === 0) {
       return NextResponse.json({ items: [] });
     }
 
-    const detailChunks = [] as Array<Array<CatalogItem>>;
+    const detailChunks: Array<Array<CatalogItem>> = [];
     for (let index = 0; index < uniqueRawItems.length; index += 100) {
       detailChunks.push(uniqueRawItems.slice(index, index + 100));
     }
@@ -128,7 +192,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ items: [] });
     }
 
-    const thumbnailChunks = [] as Array<Array<RobloxDetailItem>>;
+    const thumbnailChunks: Array<Array<RobloxDetailItem>> = [];
     for (let index = 0; index < allDetails.length; index += 100) {
       thumbnailChunks.push(allDetails.slice(index, index + 100));
     }
@@ -163,6 +227,7 @@ export async function GET(request: Request) {
         id: item.id,
         name: item.name || "Untitled",
         type: toItemType(item.assetType),
+        category: toItemCategory(item.assetType),
         price: item.price ?? item.lowestPrice ?? null,
         description: item.description || "",
         imageUrl:
@@ -171,13 +236,18 @@ export async function GET(request: Request) {
       }))
       .sort((left, right) => {
         const priceDelta = (right.price ?? 0) - (left.price ?? 0);
-        if (priceDelta !== 0) {
-          return priceDelta;
-        }
+        if (priceDelta !== 0) return priceDelta;
         return left.name.localeCompare(right.name);
       });
 
-    return NextResponse.json({ items: mergedItems });
+    // Cache the assembled catalog for 5 minutes at the CDN/edge layer.
+    // Roblox catalog data changes infrequently; caching eliminates redundant
+    // fan-out requests on every client navigation or SWR revalidation.
+    return NextResponse.json({ items: mergedItems }, {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      },
+    });
   } catch (error: unknown) {
     console.error("API Route Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
