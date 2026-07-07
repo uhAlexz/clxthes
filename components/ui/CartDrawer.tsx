@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, animate } from "motion/react";
 import Image from "next/image";
 import { X, ExternalLink, Check, ShoppingBag, ArrowLeft } from "lucide-react";
 import { useStore } from "@/store/useStore";
@@ -11,6 +11,10 @@ export function CartDrawer() {
   const { cartDrawerOpen, setCartDrawerOpen, cartItems, removeFromCart, clearCart, assistantOpen } = useStore();
   const [checkoutMode, setCheckoutMode] = useState(false);
   const [purchasedIds, setPurchasedIds] = useState<Set<number>>(new Set());
+
+  // Drag x-offset for the swipe-to-close gesture.
+  // Constrained to positive values only (can only swipe right → off screen).
+  const dragX = useMotionValue(0);
 
   // BUG FIX 1: AnimatePresence must always be rendered — the early return
   // `if (!cartDrawerOpen) return null` was placed before the AnimatePresence,
@@ -23,16 +27,27 @@ export function CartDrawer() {
   // was un-clearable on rapid open/close cycles.
   useEffect(() => {
     if (!cartDrawerOpen) {
+      dragX.set(0);
       const t = setTimeout(() => {
         setCheckoutMode(false);
         setPurchasedIds(new Set());
-      }, 300); // 300ms matches the spring exit animation duration
+      }, 300);
       return () => clearTimeout(t);
     }
-  }, [cartDrawerOpen]);
+  }, [cartDrawerOpen, dragX]);
 
   const handleClose = () => {
     setCartDrawerOpen(false);
+  };
+
+  const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
+    if (info.offset.x > 100 || info.velocity.x > 500) {
+      // Swiped far enough or fast enough — dismiss
+      handleClose();
+    } else {
+      // Snap back to resting position with a spring
+      animate(dragX, 0, { type: "spring", stiffness: 300, damping: 30 });
+    }
   };
 
   const totalRobux = cartItems.reduce((acc, item) => acc + (item.price || 0), 0);
@@ -66,9 +81,24 @@ export function CartDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 240 }}
-            className="fixed bottom-0 top-0 z-50 flex w-full max-w-sm flex-col bg-card border-l border-border transition-[right] duration-300 ease-in-out"
-            style={{ right: assistantOpen ? 380 : 0 }}
+            // ── Swipe-to-close gesture ──────────────────────────────────────
+            // dragConstraints locks left (can't push drawer further open) and
+            // sets right to 0 so elastic gives resistance beyond that point.
+            // dragElastic: 0 left = rigid, 0.4 right = 40% rubber-band feel.
+            // dragMomentum: false prevents post-release flinging.
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={{ left: 0, right: 0.4 }}
+            dragMomentum={false}
+            style={{ x: dragX, right: assistantOpen ? 380 : 0 }}
+            onDragEnd={handleDragEnd}
+            className="no-select fixed bottom-0 top-0 z-50 flex w-full max-w-sm flex-col bg-card border-l border-border"
           >
+            {/* Visual swipe handle — shown only on mobile (hidden md+) */}
+            <div className="flex justify-center pt-2.5 pb-0 md:hidden shrink-0">
+              <div className="h-1 w-8 rounded-full bg-border" />
+            </div>
+
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
                 {checkoutMode && (

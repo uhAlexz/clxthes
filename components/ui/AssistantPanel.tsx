@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, animate } from "motion/react";
 import Image from "next/image";
 import { X, ArrowUp } from "lucide-react";
 import { useStore } from "@/store/useStore";
@@ -55,6 +55,16 @@ export function AssistantPanel({
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const dragX = useMotionValue(0);
+
+  const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
+    if (info.offset.x > 100 || info.velocity.x > 500) {
+      onClose();
+    } else {
+      animate(dragX, 0, { type: "spring", stiffness: 300, damping: 30 });
+    }
+  };
 
   // Auto-focus input when panel opens
   useEffect(() => {
@@ -189,8 +199,19 @@ export function AssistantPanel({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 240 }}
-            className="fixed right-0 top-0 bottom-0 z-50 flex w-full max-w-[380px] flex-col bg-card border-l border-border"
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={{ left: 0, right: 0.4 }}
+            dragMomentum={false}
+            style={{ x: dragX }}
+            onDragEnd={handleDragEnd}
+            className="no-select fixed right-0 top-0 bottom-0 z-50 flex w-full max-w-[380px] flex-col bg-card border-l border-border"
           >
+            {/* Swipe handle — mobile only */}
+            <div className="flex justify-center pt-2.5 pb-0 md:hidden shrink-0">
+              <div className="h-1 w-8 rounded-full bg-border" />
+            </div>
+
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div className="flex items-center gap-2.5">

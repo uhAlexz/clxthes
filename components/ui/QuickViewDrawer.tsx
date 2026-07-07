@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, animate } from "motion/react";
 import Image from "next/image";
 import { X, Heart, ShoppingBag, ExternalLink } from "lucide-react";
 import { useStore } from "@/store/useStore";
@@ -13,6 +13,16 @@ export function QuickViewDrawer() {
   // Computed values are null-safe so they can live outside the conditional block
   const isSaved = quickViewItem ? savedItems.some((saved) => saved.id === quickViewItem.id) : false;
   const tags = quickViewItem ? generateTags(quickViewItem.name, quickViewItem.description) : [];
+
+  const dragX = useMotionValue(0);
+
+  const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
+    if (info.offset.x > 100 || info.velocity.x > 500) {
+      handleClose();
+    } else {
+      animate(dragX, 0, { type: "spring", stiffness: 300, damping: 30 });
+    }
+  };
 
   const handleClose = () => setQuickViewItem(null);
 
@@ -55,9 +65,19 @@ export function QuickViewDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 240 }}
-            className="fixed bottom-0 top-0 z-50 flex w-full max-w-sm flex-col bg-card border-l border-border overflow-y-auto transition-[right] duration-300 ease-in-out"
-            style={{ right: assistantOpen ? 380 : 0 }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={{ left: 0, right: 0.4 }}
+            dragMomentum={false}
+            style={{ x: dragX, right: assistantOpen ? 380 : 0 }}
+            onDragEnd={handleDragEnd}
+            className="no-select fixed bottom-0 top-0 z-50 flex w-full max-w-sm flex-col bg-card border-l border-border overflow-y-auto drawer-scroll"
           >
+            {/* Swipe handle — mobile only */}
+            <div className="flex justify-center pt-2.5 pb-0 md:hidden shrink-0">
+              <div className="h-1 w-8 rounded-full bg-border" />
+            </div>
+
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
                 Quick View

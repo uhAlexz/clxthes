@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assistantLimiter, getIp } from "@/lib/ratelimit";
 
 interface ContextItem {
   id: number;
@@ -159,6 +160,25 @@ Rules:
 
 export async function POST(request: Request) {
   try {
+    // ── Rate limiting ── check BEFORE parsing body to fail fast and cheaply.
+    if (assistantLimiter) {
+      const ip = getIp(request);
+      const { success, limit, remaining, reset } = await assistantLimiter.limit(ip);
+      if (!success) {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again later." },
+          {
+            status: 429,
+            headers: {
+              "X-RateLimit-Limit": String(limit),
+              "X-RateLimit-Remaining": String(remaining),
+              "X-RateLimit-Reset": String(reset),
+            },
+          }
+        );
+      }
+    }
+
     const body: AssistantRequest = await request.json();
     const { messages, context } = body;
 

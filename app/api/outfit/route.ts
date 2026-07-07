@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { outfitLimiter, getIp } from "@/lib/ratelimit";
 
 const SYSTEM_PROMPT = `You are a Roblox fashion stylist and outfit curator. Your job is to generate complete outfit concepts with precise Roblox catalog search terms.
 
@@ -32,6 +33,25 @@ Generate exactly 5 items that form a complete, cohesive outfit. Include at least
 
 export async function POST(request: Request) {
   try {
+    // ── Rate limiting ── fail fast before body parsing
+    if (outfitLimiter) {
+      const ip = getIp(request);
+      const { success, limit, remaining, reset } = await outfitLimiter.limit(ip);
+      if (!success) {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again later." },
+          {
+            status: 429,
+            headers: {
+              "X-RateLimit-Limit": String(limit),
+              "X-RateLimit-Remaining": String(remaining),
+              "X-RateLimit-Reset": String(reset),
+            },
+          }
+        );
+      }
+    }
+
     const body = await request.json();
     const { prompt } = body;
 

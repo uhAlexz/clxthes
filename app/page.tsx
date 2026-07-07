@@ -120,7 +120,7 @@ export default function WorkspacePage() {
           <div className="flex items-center gap-5">
             {/* Assistant toggle — always visible */}
             <button
-              onClick={() => setAssistantOpen((v) => !v)}
+              onClick={() => setAssistantOpen(!assistantOpen)}
               className={`text-[11px] uppercase tracking-[0.18em] transition-colors ${
                 assistantOpen
                   ? "text-foreground font-medium"
