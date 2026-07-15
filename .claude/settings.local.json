@@ -3,7 +3,20 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(pnpm add:*)",
-      "Bash(pnpm remove:*)"
+      "Bash(pnpm remove:*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(curl -s -D - -o /tmp/groups.json \"http://localhost:3000/api/groups?ids=2941106\")",
+      "Bash(node -e \"const d=require\\('/tmp/groups.json'\\); console.log\\('items:', d.items.length\\); console.log\\(JSON.stringify\\(d.items[0]\\)\\)\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"https://groups.roblox.com/v1/groups/search?keyword=clothing&limit=10\")",
+      "Bash(curl -s -D /tmp/hdrs.txt -o /tmp/groups.json \"http://localhost:3000/api/groups?ids=9137704\")",
+      "Bash(node -e \"const d=require\\('/tmp/groups.json'\\); console.log\\('items:', d.items.length\\); console.log\\(JSON.stringify\\(d.items[0]\\).slice\\(0,300\\)\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/groups?ids=9137704\" -o /tmp/g.json)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"page=%{http_code}\\\\n\" http://localhost:3000/)"
     ]
   }
 }

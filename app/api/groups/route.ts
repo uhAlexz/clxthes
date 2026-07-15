@@ -240,12 +240,12 @@ export async function GET(request: Request) {
         return left.name.localeCompare(right.name);
       });
 
-    // Cache the assembled catalog for 5 minutes at the CDN/edge layer.
-    // Roblox catalog data changes infrequently; caching eliminates redundant
-    // fan-out requests on every client navigation or SWR revalidation.
+    // Cache the assembled catalog for 30 minutes at the CDN/edge layer.
+    // The client requests one group per URL, so cache keys are stable per
+    // group and this shields Roblox from redundant fan-out across all users.
     return NextResponse.json({ items: mergedItems }, {
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
       },
     });
   } catch (error: unknown) {
